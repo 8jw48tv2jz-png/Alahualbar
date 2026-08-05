@@ -1,0 +1,60 @@
+name: Distributed Load Test (Vegeta - Multi Device)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  load-test-runner:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+             11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+             21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+             31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+             41, 42, 43, 44, 45, 46, 47, 48, 49, 50,
+             51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
+             61, 62, 63, 64, 65, 66, 67, 68, 69, 70,
+             71, 72, 73, 74, 75, 76, 77, 78, 79, 80,
+             81, 82, 83, 84, 85, 86, 87, 88, 89, 90,
+             91, 92, 93, 94, 95, 96, 97, 98, 99, 100]
+
+    steps:
+    - name: Instalace Vegeta
+      run: |
+        wget https://github.com/tsenart/vegeta/releases/download/v12.12.0/vegeta_12.12.0_linux_amd64.tar.gz
+        tar xzf vegeta_12.12.0_linux_amd64.tar.gz
+        sudo mv vegeta /usr/local/bin/
+
+    - name: Spuštění zátěžového testu se simulací více zařízení
+      run: |
+        TARGET_URL="https://donjjf.cz"
+        
+        # Identifikátor zařízení / nodu na základě ID z matrixu
+        NODE_ID="${{ matrix.id }}"
+        SIMULATED_IP="192.168.1.$NODE_ID"
+        
+        # Seznam různých User-Agentů pro simulaci různých zařízení
+        USER_AGENTS=(
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+          "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
+        )
+        
+        # Výběr User-Agenta podle ID jobu
+        SELECTED_UA=${USER_AGENTS[$((NODE_ID % 4))]}
+
+        echo "Spouštím worker č. $NODE_ID (Simulace IP: $SIMULATED_IP)"
+
+        # Odesílání požadavků s unikátním záhlavím pro každé zařízení/job
+        echo "POST $TARGET_URL" | vegeta attack \
+          -rate=500/1s \
+          -duration=30s \
+          -body=<(echo '{"test":true}') \
+          -header "Content-Type: application/json" \
+          -header "User-Agent: $SELECTED_UA" \
+          -header "X-Forwarded-For: $SIMULATED_IP" \
+          -header "X-Device-ID: node-$NODE_ID" \
+          | vegeta report
